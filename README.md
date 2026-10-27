@@ -41,7 +41,7 @@
 - 交互式终端：PTY + xterm.js，`Ctrl+C` 发往前台进程组
 - 内置 **Node.js**（`libgrain_node.so`）与 **npm**
 - 内置 **Python 3.13**（终端里的 `python` / `python3`）
-- 内置 **Git**（本地 `init` / `status` / `add` / `commit`；HTTPS 远程暂不支持）
+- 内置 **Git**（本地操作 + `git clone https://...`；私有仓库需自行配置凭据）
 
 更细的运行时约束与验收清单见 [docs/android-runtime.md](docs/android-runtime.md)。
 
@@ -146,7 +146,6 @@ experiments/nodejs-mobile/        已归档的旧 Node 桥接实验（不参与�
 ## 已知限制
 
 - 停止运行目前主要终止直接子进程；完整进程组 / 后台服务回收仍在完善中。
-- 内置 Git 未链接 OpenSSL / curl，无法 `git clone` HTTPS 远程。
 - 含原生扩展的 npm 依赖需按设备单独验证。
 - `npm run dev`（Vite 等）在真机上的完整 HMR 验收仍以设备实测为准。
 

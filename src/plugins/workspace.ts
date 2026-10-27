@@ -53,6 +53,8 @@ interface WorkspacePlugin {
   watchWorkspace(): Promise<void>
   readFile(options: { path: string }): Promise<{ exists: boolean; content?: string }>
   writeFile(options: { path: string; content: string }): Promise<void>
+  clipboardRead(): Promise<{ text: string }>
+  clipboardWrite(options: { text: string }): Promise<void>
   deletePath(options: { path: string }): Promise<void>
   clearWorkspace(): Promise<void>
   promoteDirectory(options: { path: string }): Promise<void>

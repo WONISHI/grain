@@ -1,6 +1,9 @@
 package app.grain.dev;
 
 import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
@@ -238,6 +241,36 @@ public class GrainWorkspacePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void clipboardRead(PluginCall call) {
+        try {
+            ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+            JSObject result = new JSObject();
+            String text = "";
+            if (clipboard != null && clipboard.hasPrimaryClip()) {
+                ClipData clip = clipboard.getPrimaryClip();
+                if (clip != null && clip.getItemCount() > 0) {
+                    CharSequence value = clip.getItemAt(0).coerceToText(getContext());
+                    if (value != null) text = value.toString();
+                }
+            }
+            result.put("text", text);
+            call.resolve(result);
+        } catch (Exception e) { call.reject(e.getMessage() == null ? "读取剪贴板失败" : e.getMessage(), e); }
+    }
+
+    @PluginMethod
+    public void clipboardWrite(PluginCall call) {
+        try {
+            String text = call.getString("text", "");
+            if (text == null) text = "";
+            ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard == null) throw new IOException("剪贴板不可用");
+            clipboard.setPrimaryClip(ClipData.newPlainText("grain", text));
+            call.resolve();
+        } catch (Exception e) { call.reject(e.getMessage() == null ? "写入剪贴板失败" : e.getMessage(), e); }
+    }
+
+    @PluginMethod
     public void pickFiles(PluginCall call) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -451,6 +484,12 @@ public class GrainWorkspacePlugin extends Plugin {
                     Log.e(TAG, "git template extract failed", e);
                 }
                 builder.environment().put("GIT_EXEC_PATH", new File(getContext().getFilesDir(), "runtime/bin").getAbsolutePath());
+                try {
+                    putTlsCertEnv(builder.environment(), ensureCaCerts());
+                } catch (Exception e) {
+                    Log.e(TAG, "CA cert extract failed", e);
+                }
+                builder.environment().put("LD_LIBRARY_PATH", getContext().getApplicationInfo().nativeLibraryDir);
             }
             File python = pythonBinary();
             if (python.isFile()) {
@@ -535,6 +574,7 @@ public class GrainWorkspacePlugin extends Plugin {
             try { npm = ensureNpm(); } catch (Exception e) { Log.e(TAG, "npm extract failed", e); }
             if (git.isFile()) {
                 try { ensureGitTemplates(); } catch (Exception e) { Log.e(TAG, "git template extract failed", e); }
+                try { ensureCaCerts(); } catch (Exception e) { Log.e(TAG, "CA cert extract failed", e); }
             }
             if (pythonBinary().isFile()) {
                 try { ensurePython(); } catch (Exception e) { Log.e(TAG, "python stdlib extract failed", e); }
@@ -795,7 +835,7 @@ public class GrainWorkspacePlugin extends Plugin {
             script.append("  for f in \"$dir\"/*; do\n");
             script.append("    [ -e \"$f\" ] || [ -L \"$f\" ] || continue\n");
             script.append("    name=${f##*/}\n");
-            script.append("    case $name in node|npm|npx|git|python|python3|*.cmd|*.ps1|*.grain-js|*.grain-cmd|*.grain-new) continue ;; esac\n");
+            script.append("    case $name in node|npm|npx|git|git-remote-http|git-remote-https|python|python3|*.cmd|*.ps1|*.grain-js|*.grain-cmd|*.grain-new) continue ;; esac\n");
             script.append("    case $name in *[!A-Za-z0-9_-]*|[!A-Za-z_]*) continue ;; esac\n");
             script.append("    if [ -L \"$f\" ]; then\n");
             script.append("      target=$(readlink \"$f\") || continue\n");
@@ -831,7 +871,7 @@ public class GrainWorkspacePlugin extends Plugin {
             script.append("  for f in \"$dir\"/*; do\n");
             script.append("    [ -f \"$f\" ] || [ -L \"$f\" ] || continue\n");
             script.append("    name=${f##*/}\n");
-            script.append("    case $name in node|npm|npx|git|python|python3|*.cmd|*.ps1|*.grain-js|*.grain-cmd|*.grain-new) continue ;; esac\n");
+            script.append("    case $name in node|npm|npx|git|git-remote-http|git-remote-https|python|python3|*.cmd|*.ps1|*.grain-js|*.grain-cmd|*.grain-new) continue ;; esac\n");
             script.append("    case $name in *[!A-Za-z0-9_-]*|[!A-Za-z_]*) continue ;; esac\n");
             script.append("    js=\n");
             script.append("    if [ -f \"$f.grain-js\" ]; then read -r js < \"$f.grain-js\"\n");
@@ -903,6 +943,15 @@ public class GrainWorkspacePlugin extends Plugin {
                 Log.e(TAG, "git template extract failed", e);
             }
             env.add("GIT_EXEC_PATH=" + new File(getContext().getFilesDir(), "runtime/bin").getAbsolutePath());
+            try {
+                File ca = ensureCaCerts();
+                env.add("SSL_CERT_FILE=" + ca.getAbsolutePath());
+                env.add("CURL_CA_BUNDLE=" + ca.getAbsolutePath());
+                env.add("GIT_SSL_CAINFO=" + ca.getAbsolutePath());
+            } catch (Exception e) {
+                Log.e(TAG, "CA cert extract failed", e);
+            }
+            env.add("LD_LIBRARY_PATH=" + getContext().getApplicationInfo().nativeLibraryDir);
         }
         File python = pythonBinary();
         if (python.isFile()) {
@@ -1086,8 +1135,37 @@ public class GrainWorkspacePlugin extends Plugin {
         if (!bin.mkdirs() && !bin.isDirectory()) throw new IOException("无法创建命令目录");
         linkRuntimeCommand(bin, "libgrain_node.so", "node");
         linkRuntimeCommand(bin, "libgrain_git.so", "git");
+        linkRuntimeCommand(bin, "libgrain_git_remote_http.so", "git-remote-http");
+        linkRuntimeCommand(bin, "libgrain_git_remote_http.so", "git-remote-https");
         linkRuntimeCommand(bin, "libgrain_python.so", "python3");
         linkRuntimeCommand(bin, "libgrain_python.so", "python");
+    }
+
+    private static void putTlsCertEnv(Map<String, String> env, File ca) {
+        String path = ca.getAbsolutePath();
+        env.put("SSL_CERT_FILE", path);
+        env.put("CURL_CA_BUNDLE", path);
+        env.put("GIT_SSL_CAINFO", path);
+    }
+
+    private File caCertFile() {
+        return new File(getContext().getFilesDir(), "runtime/certs/cacert.pem");
+    }
+
+    private synchronized File ensureCaCerts() throws IOException {
+        File dest = caCertFile();
+        if (dest.isFile() && dest.length() > 1024) return dest;
+        File parent = dest.getParentFile();
+        if (parent != null && !parent.isDirectory() && !parent.mkdirs() && !parent.isDirectory()) {
+            throw new IOException("无法创建证书目录");
+        }
+        try (InputStream input = getContext().getAssets().open("cacert.pem");
+             FileOutputStream output = new FileOutputStream(dest)) {
+            byte[] buffer = new byte[8192];
+            int size;
+            while ((size = input.read(buffer)) >= 0) output.write(buffer, 0, size);
+        }
+        return dest;
     }
 
     private void linkRuntimeCommand(File bin, String library, String name) throws IOException, InterruptedException {

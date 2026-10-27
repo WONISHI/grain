@@ -281,6 +281,22 @@ function markWorkspaceOpened() {
   }
   welcomeOpen.value = false
   leaveWelcomeOpen.value = false
+  void focusConsoleOnOpen()
+}
+
+/** 打开项目后切到底部终端并聚焦输入 */
+async function focusConsoleOnOpen() {
+  panelTab.value = 'runtime'
+  panelOpen.value = true
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    await nextTick()
+    const view = activeTerminal.value
+    if (view) {
+      view.focus?.()
+      return
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 50))
+  }
 }
 
 function askLeaveToWelcome() {

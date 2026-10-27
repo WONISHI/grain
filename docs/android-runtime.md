@@ -34,7 +34,7 @@ npm 10.9.9 的 JS 放在 `files/runtime/npm`，终端里的 `npm` 和 `npx` 用�
 已核对：`create-vue --version` 为 `3.24.0`，`vue --version` 为 `@vue/cli 5.0.9`，`create-react-app --version` 为 `5.1.0`。终端启动时，以及每次 `npm` 命令结束时，会给全局 bin 建立同名 shell 函数，并用内置 Node 执行对应的 JS。Android 没有 `/usr/bin/env`，所以 `#!/usr/bin/env node` 不能直接当命令执行。直接执行这个脚本时，平板上的 shell 会报 `inaccessible or not found`。
 带原生可执行文件的依赖仍然要单独验证。生成项目后的 `npm run dev` 还没有作为验收结果。
 
-Git 2.51.0 以 `libgrain_git.so` 打进 APK。终端里的 `git` 调用这份文件，模拟器上 `git -v` 返回 `git version 2.51.0`。`git init` 使用随包模板。这份 Git 没有链接 OpenSSL 和 curl，不能 `git clone` HTTPS 远程。本地 `init`、`status`、`add`、`commit` 可用。
+Git 2.51.0 以 `libgrain_git.so` 打进 APK，HTTPS 助手是 `libgrain_git_remote_http.so`（`git-remote-http` / `git-remote-https`）。终端里的 `git` 调用这份文件，模拟器上 `git -v` 返回 `git version 2.51.0`。`git init` 使用随包模板。已静态链接 OpenSSL 与 curl，并随包提供 `cacert.pem`（`SSL_CERT_FILE` / `GIT_SSL_CAINFO`），可用 `git clone https://...`。私有仓库仍需自行配置凭据。
 
 CPython 3.13.7 以 `libgrain_python.so` 打进 APK，标准库在首次打开终端时解压到 `files/runtime/python`。终端 PATH 里的 `python` 和 `python3` 都指向这份解释器。扩展模块放在应用原生库目录，名字是 `libpyext_<模块名>.so`，因为 targetSdk 36 不允许从应用可写目录加载 `.so`。`ssl`、`hashlib`、`sqlite3` 随包提供。`pip` 没有打进安装包。
 

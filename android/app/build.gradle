@@ -8,6 +8,19 @@ def grainNdk = System.getenv('ANDROID_NDK_HOME') ?: (grainSdk ? "${grainSdk}/ndk
 def grainHostTag = org.gradle.internal.os.OperatingSystem.current().isMacOsX() ? 'darwin-x86_64' : 'linux-x86_64'
 def grainPtyClang = grainNdk ? "${grainNdk}/toolchains/llvm/prebuilt/${grainHostTag}/bin/aarch64-linux-android24-clang" : null
 
+// APK 版本跟随仓库根目录 package.json，避免改 npm 版本后系统里仍显示 1.0。
+def grainPackageFile = rootProject.file('../package.json')
+def grainPackage = new groovy.json.JsonSlurper().parse(grainPackageFile)
+def grainVersionName = (grainPackage.version ?: '0.0.0').toString()
+def grainVersionParts = grainVersionName.tokenize('.').collect { part ->
+    def digits = (part =~ /^(\d+)/)
+    digits.find() ? digits.group(1) as int : 0
+}
+while (grainVersionParts.size() < 3) grainVersionParts << 0
+def grainVersionCode = grainVersionParts[0] * 10000 + grainVersionParts[1] * 100 + grainVersionParts[2]
+if (grainVersionCode < 1) grainVersionCode = 1
+println "Grain Android versionName=${grainVersionName} versionCode=${grainVersionCode}"
+
 tasks.register('buildGrainPty', Exec) {
     def output = file('src/main/jniLibs/arm64-v8a/libgrain_pty.so')
     inputs.file('src/main/cpp/grain_pty.c')
@@ -45,8 +58,8 @@ android {
         applicationId "app.grain.dev"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode grainVersionCode
+        versionName grainVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

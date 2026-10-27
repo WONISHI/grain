@@ -21,6 +21,7 @@ lerna-debug.log*
 .env.*
 !.env.example
 *.pem
+!android/app/src/main/assets/cacert.pem
 *.p12
 *.jks
 *.keystore

@@ -1,0 +1,7 @@
+{
+  "name": "grain-node",
+  "version": "0.1.0",
+  "private": true,
+  "description": "On-device Node entry for Grain. Started by @capawesome/capacitor-nodejs from the main field. npm installs for user projects must not use child_process on mobile.",
+  "main": "index.js"
+}

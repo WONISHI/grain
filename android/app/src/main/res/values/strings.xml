@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Grain</string>
+    <string name="title_activity_main">Grain</string>
+    <string name="package_name">app.grain.dev</string>
+    <string name="custom_url_scheme">app.grain.dev</string>
+</resources>

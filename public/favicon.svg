@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title">
+  <title id="title">Grain C — Tile slash</title>
+  <rect x="32" y="32" width="192" height="192" rx="44" fill="#0B0D10"/>
+  <path fill="#FF6B4A" d="
+    M148 64
+    L168 64
+    L108 192
+    L88 192
+    Z"/>
+</svg>

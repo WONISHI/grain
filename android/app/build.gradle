@@ -3,16 +3,24 @@ apply plugin: 'com.android.application'
 def grainLocal = new Properties()
 def grainLocalFile = rootProject.file('local.properties')
 if (grainLocalFile.exists()) grainLocalFile.withInputStream { grainLocal.load(it) }
-def grainSdk = grainLocal.getProperty('sdk.dir')
-def grainPtyClang = "${grainSdk}/ndk/27.0.12077973/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang"
+def grainSdk = System.getenv('ANDROID_SDK_ROOT') ?: System.getenv('ANDROID_HOME') ?: grainLocal.getProperty('sdk.dir')
+def grainNdk = System.getenv('ANDROID_NDK_HOME') ?: (grainSdk ? "${grainSdk}/ndk/27.0.12077973" : null)
+def grainHostTag = org.gradle.internal.os.OperatingSystem.current().isMacOsX() ? 'darwin-x86_64' : 'linux-x86_64'
+def grainPtyClang = grainNdk ? "${grainNdk}/toolchains/llvm/prebuilt/${grainHostTag}/bin/aarch64-linux-android24-clang" : null
 
 tasks.register('buildGrainPty', Exec) {
     def output = file('src/main/jniLibs/arm64-v8a/libgrain_pty.so')
     inputs.file('src/main/cpp/grain_pty.c')
     outputs.file(output)
+    onlyIf {
+        def clang = grainPtyClang ? file(grainPtyClang) : null
+        clang != null && clang.isFile()
+    }
     doFirst {
         output.parentFile.mkdirs()
-        if (!file(grainPtyClang).isFile()) throw new GradleException("找不到 NDK clang：${grainPtyClang}")
+        if (grainPtyClang == null || !file(grainPtyClang).isFile()) {
+            throw new GradleException("找不到 NDK clang：${grainPtyClang}")
+        }
     }
     commandLine grainPtyClang, '-shared', '-fPIC', '-O2', '-pthread',
         '-Wl,-z,max-page-size=16384',
@@ -20,7 +28,15 @@ tasks.register('buildGrainPty', Exec) {
         '-o', output.absolutePath,
         file('src/main/cpp/grain_pty.c').absolutePath
 }
-tasks.named('preBuild').configure { dependsOn('buildGrainPty') }
+tasks.named('preBuild').configure {
+    dependsOn('buildGrainPty')
+    doFirst {
+        def pty = file('src/main/jniLibs/arm64-v8a/libgrain_pty.so')
+        if (!pty.isFile()) {
+            throw new GradleException('缺少 libgrain_pty.so：请先编译 PTY，或解压 CI 用的 native-libs 包')
+        }
+    }
+}
 
 android {
     namespace = "app.grain.dev"

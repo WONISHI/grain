@@ -1,0 +1,83 @@
+name: Build APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android packages
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+      - name: Restore native libs cache
+        id: cache-libs
+        uses: actions/cache@v4
+        with:
+          path: android/app/src/main/jniLibs/arm64-v8a
+          key: jniLibs-arm64-${{ hashFiles('scripts/build-android-*.sh', 'scripts/pack-jniLibs.sh') }}
+
+      - name: Download native libs from Release
+        if: steps.cache-libs.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p android/app/src/main/jniLibs
+          if gh release download native-libs -p 'native-libs-arm64-v8a.tar.gz' -D /tmp; then
+            tar -xzf /tmp/native-libs-arm64-v8a.tar.gz -C android/app/src/main/jniLibs
+          else
+            echo "::error::缺少 jniLibs。在本机执行 scripts/pack-jniLibs.sh，再运行："
+            echo "  gh release create native-libs native-libs-arm64-v8a.tar.gz --title 'Native libs' --notes 'CI 用的 arm64 原生库'"
+            exit 1
+          fi
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build web and sync Capacitor
+        run: npm run cap:sync
+
+      - name: Assemble debug APK
+        working-directory: android
+        run: ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: grain-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          generate_release_notes: true

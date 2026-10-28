@@ -489,6 +489,8 @@ public class GrainWorkspacePlugin extends Plugin {
                 } catch (Exception e) {
                     Log.e(TAG, "CA cert extract failed", e);
                 }
+                try { ensureGitIdentity(); } catch (Exception e) { Log.e(TAG, "git identity setup failed", e); }
+                putGitIdentityEnv(builder.environment());
                 builder.environment().put("LD_LIBRARY_PATH", getContext().getApplicationInfo().nativeLibraryDir);
             }
             File python = pythonBinary();
@@ -575,6 +577,7 @@ public class GrainWorkspacePlugin extends Plugin {
             if (git.isFile()) {
                 try { ensureGitTemplates(); } catch (Exception e) { Log.e(TAG, "git template extract failed", e); }
                 try { ensureCaCerts(); } catch (Exception e) { Log.e(TAG, "CA cert extract failed", e); }
+                try { ensureGitIdentity(); } catch (Exception e) { Log.e(TAG, "git identity setup failed", e); }
             }
             if (pythonBinary().isFile()) {
                 try { ensurePython(); } catch (Exception e) { Log.e(TAG, "python stdlib extract failed", e); }
@@ -951,6 +954,12 @@ public class GrainWorkspacePlugin extends Plugin {
             } catch (Exception e) {
                 Log.e(TAG, "CA cert extract failed", e);
             }
+            try { ensureGitIdentity(); } catch (Exception e) { Log.e(TAG, "git identity setup failed", e); }
+            env.add("GIT_AUTHOR_NAME=Grain");
+            env.add("GIT_AUTHOR_EMAIL=grain@localhost");
+            env.add("GIT_COMMITTER_NAME=Grain");
+            env.add("GIT_COMMITTER_EMAIL=grain@localhost");
+            env.add("EMAIL=grain@localhost");
             env.add("LD_LIBRARY_PATH=" + getContext().getApplicationInfo().nativeLibraryDir);
         }
         File python = pythonBinary();
@@ -1146,6 +1155,24 @@ public class GrainWorkspacePlugin extends Plugin {
         env.put("SSL_CERT_FILE", path);
         env.put("CURL_CA_BUNDLE", path);
         env.put("GIT_SSL_CAINFO", path);
+    }
+
+    private static void putGitIdentityEnv(Map<String, String> env) {
+        // Android 没有完整 passwd/GECOS；clone 写 reflog 时若缺身份会空指针崩溃。
+        env.put("GIT_AUTHOR_NAME", "Grain");
+        env.put("GIT_AUTHOR_EMAIL", "grain@localhost");
+        env.put("GIT_COMMITTER_NAME", "Grain");
+        env.put("GIT_COMMITTER_EMAIL", "grain@localhost");
+        env.put("EMAIL", "grain@localhost");
+    }
+
+    private synchronized void ensureGitIdentity() throws IOException {
+        File config = new File(getContext().getFilesDir(), ".gitconfig");
+        if (config.isFile() && config.length() > 0) return;
+        String body = "[user]\n\tname = Grain\n\temail = grain@localhost\n";
+        try (FileOutputStream output = new FileOutputStream(config)) {
+            output.write(body.getBytes(StandardCharsets.UTF_8));
+        }
     }
 
     private File caCertFile() {

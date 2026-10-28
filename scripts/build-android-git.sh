@@ -105,7 +105,8 @@ if [[ ! -f "$CURL_PREFIX/lib/libcurl.a" ]]; then
   popd >/dev/null
 fi
 
-CURL_STATIC_LIBS="$("$CURL_PREFIX/bin/curl-config" --static-libs)"
+# Force static curl+openssl into the helpers (avoid runtime libssl_python.so).
+CURL_STATIC_LIBS="$CURL_PREFIX/lib/libcurl.a $OPENSSL_PREFIX/lib/libssl.a $OPENSSL_PREFIX/lib/libcrypto.a -lz -ldl"
 echo "curl static libs: $CURL_STATIC_LIBS"
 
 cd "$SRC"
@@ -125,6 +126,7 @@ make -j"$(sysctl -n hw.ncpu)" \
   CURL_CONFIG="$CURL_PREFIX/bin/curl-config" \
   CURL_CFLAGS="-I$CURL_PREFIX/include" \
   CURL_LDFLAGS="$CURL_STATIC_LIBS" \
+  NO_GECOS_IN_PWENT=YesPlease \
   NO_EXPAT=YesPlease \
   NO_GETTEXT=YesPlease \
   NO_TCLTK=YesPlease \
